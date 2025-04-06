@@ -1,0 +1,2 @@
+# BypassNinja
+Bypass 403 
