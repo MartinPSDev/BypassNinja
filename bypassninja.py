@@ -14,6 +14,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from threading import Event
 import traceback 
+import subprocess
 
 init(autoreset=True)
 
@@ -642,16 +643,27 @@ class BypassBlaster:
 # Store first_success_result globally or pass it around if needed outside run()
 first_success_result = None
 
+def update_script():
+    """Update the script by pulling the latest changes from the repository."""
+    try:
+        # Ejecutar el comando git pull para actualizar el repositorio
+        result = subprocess.run(['git', 'pull'], check=True, capture_output=True, text=True)
+        print(result.stdout)
+        print("The script has been updated successfully.")
+    except subprocess.CalledProcessError as e:
+        print(f"Error updating the script: {e.stderr}")
+        sys.exit(1)
+
 def main():
-    parser = argparse.ArgumentParser(description=f"BypassNinja v{VERSION} - HTTP Evasion Tool") # Renamed slightly
+    parser = argparse.ArgumentParser(description=f"BypassNinja v{VERSION} - HTTP Evasion Tool")
 
     # --- (Arguments remain the same) ---
-    parser.add_argument("url", help="Target URL (e.g. https://example.com)")
+    parser.add_argument("url", nargs='?', help="Target URL (e.g. https://example.com)")
     parser.add_argument("-p", "--path", default="/", help="Path to test (default: /)")
     parser.add_argument("-o", "--output", help="Output file for results (JSON format)")
     parser.add_argument("--proxy", help="Proxy URL (e.g. http://127.0.0.1:8080 or socks5h://127.0.0.1:1080)")
-    parser.add_argument("-t", "--threads", type=int, default=20, help="Number of concurrent threads (default: 20)") # Higher default
-    parser.add_argument("--timeout", type=float, default=10.0, help="Request timeout in seconds (float, default: 10.0)") # Allow float
+    parser.add_argument("-t", "--threads", type=int, default=20, help="Number of concurrent threads (default: 20)")
+    parser.add_argument("--timeout", type=float, default=10.0, help="Request timeout in seconds (float, default: 10.0)")
     parser.add_argument("-d", "--delay", type=float, default=0, help="Delay between requests per thread in seconds (default: 0)")
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output (show all non-successful attempts)")
     parser.add_argument("-r", "--retry", type=int, default=1, help="Number of retries for failed requests (default: 1)")
@@ -663,9 +675,18 @@ def main():
     parser.add_argument("--burst", action="store_true", help="Burst mode (uses only GET/POST methods)")
     parser.add_argument("--no-verify", action="store_true", help="Disable SSL verification")
     parser.add_argument("--stop-on-success", action="store_true", help="Stop after the first success (2xx) or redirect (3xx)")
-
+    parser.add_argument("--update", "-u", action="store_true", help="Update the script from the repository")
 
     args = parser.parse_args()
+
+    # Check if the update flag is set
+    if args.update:
+        update_script()
+        sys.exit(0)
+
+    # Check if URL is provided when not updating
+    if not args.url:
+        parser.error("the following arguments are required: url")
 
     # --- Handle Proxy ---
     proxies = None
