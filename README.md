@@ -42,10 +42,18 @@ python bypassninja.py <URL> [options]
 ### Example Command
 
 ```bash
-python bypassninja.py https://example.com -p /admin --output results.json --threads 10 --stop-on-success
+python bypassninja.py https://target.com -p /admin --output results.json --threads 10 --stop-on-success
 ```
 
 This command will attempt to evade blocks on `https://example.com` at the path `/admin`, using 10 threads and saving the results to `results.json`. The tool will stop after finding the first success or redirect.
+
+
+### Recommended command
+
+```bash
+python3 bypassninja.py https://target.com --timeout 3 -d 1 -o report --stop-on-success
+```
+
 
 <img src="./assets/bypass_succes.png" width="auto" height="auto" alt="bypass_succes image">
 
