@@ -152,18 +152,17 @@ class BypassBlaster:
 
     def print_banner(self):
         # --- (Banner ) ---
-        banner = f"""
-{Fore.CYAN}╔══════════════════════════════════════════════════════════════╗{Style.RESET_ALL}
-{Fore.BLUE}║ {Fore.BLUE}██████╗ {Fore.LIGHTBLUE_EX}██╗   ██╗{Fore.BLUE}██████╗  {Fore.LIGHTBLUE_EX}█████╗ {Fore.BLUE}███████╗███████╗{Fore.BLUE} ║{Style.RESET_ALL}
-{Fore.BLUE}║ {Fore.BLUE}██╔══██╗{Fore.LIGHTBLUE_EX}╚██╗ ██╔╝{Fore.BLUE}██╔══██╗{Fore.LIGHTBLUE_EX}██╔══██╗{Fore.BLUE}██╔════╝██╔════╝{Fore.BLUE} ║{Style.RESET_ALL}
-{Fore.BLUE}║ {Fore.BLUE}██████╔╝{Fore.LIGHTBLUE_EX} ╚████╔╝ {Fore.BLUE}██████╔╝{Fore.LIGHTBLUE_EX}███████║{Fore.BLUE}███████╗███████╗{Fore.BLUE} ║{Style.RESET_ALL}
-{Fore.BLUE}║ {Fore.BLUE}██╔══██╗{Fore.LIGHTBLUE_EX}  ╚██╔╝  {Fore.BLUE}██╔═══╝ {Fore.LIGHTBLUE_EX}██╔══██║{Fore.BLUE}╚════██║╚════██║{Fore.BLUE} ║{Style.RESET_ALL}
-{Fore.BLUE}║ {Fore.BLUE}██████╔╝{Fore.LIGHTBLUE_EX}   ██║   {Fore.BLUE}██║     {Fore.LIGHTBLUE_EX}██║  ██║{Fore.BLUE}███████║███████║{Fore.BLUE} ║{Style.RESET_ALL}
-{Fore.BLUE}║ {Fore.BLUE}╚═════╝ {Fore.LIGHTBLUE_EX}   ╚═╝   {Fore.BLUE}╚═╝     {Fore.LIGHTBLUE_EX}╚═╝  ╚═╝{Fore.BLUE}╚══════╝╚══════╝{Fore.BLUE} ║{Style.RESET_ALL}
-{Fore.CYAN}║────────────────────────────────────────────────────────────{Fore.CYAN}║{Style.RESET_ALL}
-{Fore.CYAN}║ {Fore.BLUE}        BypassNinja {VERSION} - HTTP 403 Evasion Tool         {Fore.CYAN}║{Style.RESET_ALL}
-{Fore.CYAN}║ {Fore.LIGHTBLUE_EX}                      by @M4rt1n_0x1337                       {Fore.CYAN}║{Style.RESET_ALL}
-{Fore.CYAN}╚══════════════════════════════════════════════════════════════╝{Style.RESET_ALL}
+        banner = r"""
+╔══════════════════════════════════════════════════════════════╗
+║   ___                             _  ___        _            ║
+║  / _ )__ _____  ___ ____ ___     / |/ (_)__    (_)__ _       ║
+║ / _  / // / _ \/ _ `(_-<(_-<    /    / / _ \  / / _ `/       ║
+║/____/\_, / .__/\_,_/___/___/   /_/|_/_/_//_/_/ /\_,_/        ║
+║     /___/_/                               |___/              ║
+║────────────────────────────────────────────────────────────  ║
+║        BypassNinja {VERSION 1.0} - HTTP 403 Evasion Tool     ║
+║                      by @M4rt1n_0x1337                       ║
+╚══════════════════════════════════════════════════════════════╝
 """
         print(banner)
 
