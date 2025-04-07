@@ -147,8 +147,8 @@ class BypassBlaster:
         
         # Añadir contador de errores SSL
         self.ssl_error_count = 0
-        self.ssl_error_threshold = 10  # Umbral para detener el script
-        self.last_ssl_error = None  # Para almacenar el último error SSL
+        self.ssl_error_threshold = 10  # Threshold to stop the script
+        self.last_ssl_error = None  # To store the last SSL error
 
     def print_banner(self):
         # --- (Banner ) ---
@@ -355,23 +355,23 @@ class BypassBlaster:
         except requests.exceptions.SSLError as e:
             error_message = str(e)
             
-            # Verificar si es el mismo error que el anterior
+            # Check if it's the same error as before
             if self.last_ssl_error == error_message:
                 self.ssl_error_count += 1
             else:
-                # Si es un error diferente, reiniciar el contador
+                # If it's a different error, reset the counter
                 self.ssl_error_count = 1
                 self.last_ssl_error = error_message
             
             if self.verify_ssl:
                 print(f"{Fore.YELLOW}[SSL ERROR]{Style.RESET_ALL} {method} {url} - {error_message}")
                 
-                # Si se alcanza el umbral de errores SSL, detener el script
+                # If the SSL error threshold is reached, stop the script
                 if self.ssl_error_count >= self.ssl_error_threshold:
-                    print(f"\n{Fore.RED}[!!!] DEMASIADOS ERRORES SSL REPETIDOS ({self.ssl_error_count}){Style.RESET_ALL}")
-                    print(f"{Fore.RED}[!!!] Deteniendo el script para evitar más errores.{Style.RESET_ALL}")
-                    print(f"{Fore.YELLOW}[TIP]{Style.RESET_ALL} Intenta ejecutar el script con la opción --no-verify para ignorar la verificación SSL")
-                    self.stop_event.set()  # Señalizar a todos los hilos para detenerse
+                    print(f"\n{Fore.RED}[!!!] TOO MANY REPEATED SSL ERRORS ({self.ssl_error_count}){Style.RESET_ALL}")
+                    print(f"{Fore.RED}[!!!] Stopping the script to prevent further errors.{Style.RESET_ALL}")
+                    print(f"{Fore.YELLOW}[TIP]{Style.RESET_ALL} Try running the script with the --no-verify option to ignore SSL verification")
+                    self.stop_event.set()  # Signal all threads to stop
             return None
         except requests.exceptions.RequestException as e:
             if self.verbose: print(f"{Fore.RED}[ERROR]{Style.RESET_ALL} {method} {url} - {type(e).__name__}: {str(e)}")
