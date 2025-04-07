@@ -759,7 +759,7 @@ def main():
         except Exception as e: print(f"{Fore.RED}[!] Error reading payloads file: {e}{Style.RESET_ALL}"); sys.exit(1)
 
 
-    blaster = None # Initialize
+    blaster = None 
     try:
         blaster = BypassBlaster(
             url=args.url,
