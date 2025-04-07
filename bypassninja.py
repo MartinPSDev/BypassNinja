@@ -330,8 +330,6 @@ class BypassBlaster:
             if self.stop_on_success and is_stop_worthy:
                 status_text = self.check_response_status_text(status)
                 print(f"{Fore.GREEN}[FOUND]{Style.RESET_ALL} [{method}] {url} | Status: {status_text} {status} | Size: {size}")
-                # <<< ADD DEBUG PRINT >>>
-                print(f"{Fore.MAGENTA}>>> try_request: Preparing to return stop_signal=True for {status} at {url}{Style.RESET_ALL}")
                 return {"stop_signal": True, "result": result_data}
 
             # Normal Printing Logic
@@ -476,10 +474,8 @@ class BypassBlaster:
             # Submit initial batch or all tasks
             for method, url, headers in test_cases:
                  # Check stop event *before* submitting more tasks if stop_on_success is True
-                 # This check is less critical here than in the processing loop, but good practice
                  if self.stop_event.is_set():
                       break
-                 # Pass self.stop_event is NOT needed for submit; try_request accesses it via self
                  future = executor.submit(self.try_request, method, url, headers, 0)
                  futures.add(future)
                  submitted_requests += 1
@@ -500,51 +496,28 @@ class BypassBlaster:
                         result_data = task_output.get("result")
                         stop_signal = task_output.get("stop_signal", False)
 
-                        # <<< ADD DEBUG PRINT >>>
-                        print(f"{Fore.CYAN}>>> run loop: Got result. task_output is None? {task_output is None}{Style.RESET_ALL}")
-
                         if self.stop_on_success and stop_signal:
-                            # <<< ADD DEBUG PRINT >>>
-                            print(f"{Fore.MAGENTA}>>> run loop: Stop condition MET (stop_on_success AND stop_signal are True){Style.RESET_ALL}")
                             if not stop_triggered:
-                                # <<< ADD DEBUG PRINT >>>
-                                print(f"{Fore.MAGENTA}>>> run loop: stop_triggered is False, proceeding to SET EVENT and flag.{Style.RESET_ALL}")
-
                                 print(f"\n{Fore.YELLOW}[!!!] STOP SIGNAL RECEIVED! (Status: {result_data.get('status', 'N/A')}). Signaling threads...{Style.RESET_ALL}")
                                 self.stop_event.set()  # SET THE EVENT!
                                 first_success_result = result_data  # Store the triggering result
                                 stop_triggered = True  # Set flag for subsequent iterations
-                                print(f"{Fore.MAGENTA}>>> run loop: stop_event SET and stop_triggered is now TRUE.{Style.RESET_ALL}")
-                            else:
-                                # <<< ADD DEBUG PRINT >>>
-                                print(f"{Fore.MAGENTA}>>> run loop: stop_triggered was ALREADY True. Ignoring duplicate stop signal.{Style.RESET_ALL}")
 
                         # --- Handle Normal Success (2xx) ---
-                        # Add successful bypasses (200/201) if stop wasn't active
                         elif result_data and result_data['success']:
                             self.successful_bypasses.append(result_data)
-                            # [HIT] is printed by worker thread
-
-                        # --- Handle Other Results ---
-                        # Verbose/Error printing is handled in try_request
 
                 except Exception as exc:
-                    # Handle exceptions from the future.result() call (e.g., task raised unexpected error)
                     print(f'{Fore.RED}[!] Main loop error processing future result: {exc}{Style.RESET_ALL}')
                     traceback.print_exc()
 
-
                 # --- Progress Update ---
-                # Print progress based on processed vs total submitted that will run
                 if processed_requests % 100 == 0 or processed_requests == total_combinations:
-                      # Avoid division by zero if total_combinations somehow becomes 0
                       if total_combinations > 0:
                            progress = (processed_requests / total_combinations) * 100
-                           # Use sys.stdout.write for single-line updating progress
                            status_line = f"\r{Fore.CYAN}[+] Progress: {progress:.1f}% ({processed_requests}/{total_combinations}){Style.RESET_ALL}"
                            sys.stdout.write(status_line.ljust(80)) # Pad to overwrite previous line
                            sys.stdout.flush()
-
 
         # --- End Execution ---
         print() # Newline after progress indicator
