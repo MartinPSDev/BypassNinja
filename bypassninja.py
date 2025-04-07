@@ -685,7 +685,7 @@ def main():
     parser.add_argument("-p", "--path", default="/", help="Path to test (default: /)")
     parser.add_argument("-o", "--output", help="Output file for results (JSON format)")
     parser.add_argument("--proxy", help="Proxy URL (e.g. http://127.0.0.1:8080 or socks5h://127.0.0.1:1080)")
-    parser.add_argument("-t", "--threads", type=int, default=20, help="Number of concurrent threads (default: 20)")
+    parser.add_argument("-t", "--threads", type=int, default=5, help="Number of concurrent threads (default: 5)")
     parser.add_argument("--timeout", type=float, default=10.0, help="Request timeout in seconds (float, default: 10.0)")
     parser.add_argument("-d", "--delay", type=float, default=0, help="Delay between requests per thread in seconds (default: 0)")
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output (show all non-successful attempts)")
