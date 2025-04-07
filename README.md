@@ -19,6 +19,9 @@ To run the tool, use the following command in the terminal:
 python bypassninja.py <URL> [options]
 ```
 
+<img src="./assets/banner_screenshot.png" width="auto" height="auto" alt="bypass_succes image">
+
+
 ### Parameters
 
 - `<URL>`: The target URL (e.g., `https://example.com`).
