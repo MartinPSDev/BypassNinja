@@ -1,4 +1,4 @@
-<img src="./assets/logo.png" width="auto" height="auto" alt="bypass_succes image">
+<img src="./assets/logo.png" width="auto" height="10%" alt="bypass_succes image">
 
 **BypassNinja** is a tool designed to evade HTTP (403) blocks by utilizing various methods and headers. Below is how to use the tool.
 
