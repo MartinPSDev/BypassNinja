@@ -145,7 +145,7 @@ class BypassBlaster:
         self.stop_event = Event() # Create event here for main thread access
 
     def print_banner(self):
-        # --- (Banner code remains the same) ---
+        # --- (Banner ) ---
         banner = f"""
 {Fore.CYAN}╔══════════════════════════════════════════════════════════════╗{Style.RESET_ALL}
 {Fore.BLUE}║ {Fore.BLUE}██████╗ {Fore.LIGHTBLUE_EX}██╗   ██╗{Fore.BLUE}██████╗  {Fore.LIGHTBLUE_EX}█████╗ {Fore.BLUE}███████╗███████╗{Fore.BLUE} ║{Style.RESET_ALL}
