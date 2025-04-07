@@ -1,0 +1,33 @@
+{
+    "target": "https://cloud.mail.bbva.com.ar/",
+    "timestamp": "2025-04-07 11:39:33",
+    "summary": {
+        "total_requests_processed": 11286,
+        "successful_bypasses_2xx": 1,
+        "time_elapsed_seconds": 28.733970880508423,
+        "waf_detected": [
+            "F5 BIG-IP ASM",
+            "Fastly"
+        ],
+        "captcha_detected": []
+    },
+    "successful_bypasses": [
+        {
+            "method": "GET",
+            "url": "https://cloud.mail.bbva.com.ar/%20",
+            "status": 302,
+            "size": 151,
+            "request_headers": {},
+            "response_headers": {
+                "Content-Type": "text/html; charset=utf-8",
+                "Location": "/GenericError.aspx?aspxerrorpath=/",
+                "Date": "Mon, 07 Apr 2025 14:39:32 GMT",
+                "Connection": "close",
+                "Content-Length": "151"
+            },
+            "waf_detected": [],
+            "captcha_detected": [],
+            "content_preview": "<html><head><title>Object moved</title></head><body>\r\n<h2>Object moved to <a href=\"/GenericError.aspx?aspxerrorpath=/\">here</a>.</h2>\r\n</body></html>\r\n"
+        }
+    ]
+}

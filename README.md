@@ -62,3 +62,8 @@ python3 bypassninja.py https://target.com --timeout 3 -d 1 -o report --stop-on-s
 - Ensure you have permission to perform testing on the target.
 - Use the tool responsibly and ethically.
 
+
+## Author
+
+- **@M4rt1n_0x1337** - *Initial work* - [GitHub](https://github.com/M4rt1n_0x1337)
+
