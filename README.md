@@ -58,7 +58,7 @@ python3 bypassninja.py https://target.com --timeout 3 -d 1 -o report --stop-on-s
 ```
 
 
-<img src="./assets/bypass_succes.png" width="auto" height="auto" alt="bypass_succes image">
+<img src="./assets/bypass_succes.png" width="150%" height="auto" alt="bypass_succes image">
 
 ## Notes
 
