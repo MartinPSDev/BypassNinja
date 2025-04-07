@@ -10,11 +10,10 @@ import platform
 import socket
 from urllib.parse import urljoin, urlparse
 from colorama import init, Fore, Style, Back
-# Use as_completed for efficient result processing
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from threading import Event
-import traceback # For better error reporting
+import traceback 
 
 init(autoreset=True)
 
