@@ -1,3 +1,2 @@
 .venv/ 
-# Ignore JSON files
 *.json 
