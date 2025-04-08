@@ -108,7 +108,7 @@ CAPTCHA_SIGNATURES = {
 
 
 class BypassBlaster:
-    def __init__(self, url, path="/", proxies=None, threads=5, timeout=10, delay=0,
+    def __init__(self, url, path="/", proxies=None, threads=5, timeout=7, delay=0,
                  verbose=False, retry=2, cookie=None, follow_redirects=False,
                  custom_headers=None, custom_payloads=None, max_requests=None,
                  burst_mode=False, verify_ssl=True, stop_on_success=False):
