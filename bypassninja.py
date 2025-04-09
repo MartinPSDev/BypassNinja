@@ -20,9 +20,8 @@ init(autoreset=True)
 
 VERSION = "1.0.1"
 
-# --- Constants: USER_AGENTS, HTTP_METHODS, HEADERS_BYPASS, PATH_MUTATIONS, WAF_SIGNATURES, CAPTCHA_SIGNATURES ---
-# (Keep these exactly as they were in your previous correct listings)
-# Expanded list of user agents
+
+# list of user agents
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.3 Safari/605.1.15",
