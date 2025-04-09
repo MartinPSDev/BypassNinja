@@ -85,10 +85,9 @@ USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0"
 ]
 
-# Expanded HTTP methods
+
 HTTP_METHODS = ["GET", "POST", "HEAD", "OPTIONS", "PUT", "DELETE", "TRACE", "CONNECT", "PATCH"]
 
-# Enhanced bypass headers
 HEADERS_BYPASS = [
     {"X-Forwarded-For": "127.0.0.1"}, {"X-Forwarded-For": "localhost"},
     {"X-Forwarded-For": "192.168.1.1"}, {"X-Forwarded-For": "10.0.0.1"},
