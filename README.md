@@ -60,6 +60,19 @@ python3 bypassninja.py https://target.com --timeout 3 -d 1 -o report --stop-on-s
 
 <img src="./assets/bypass_succes.png" width="150%" height="auto" alt="bypass_succes image">
 
+
+## New Features: WAF Bypass Techniques (4/10/2025)
+
+### IP Address Representation Variations 
+Based on an article written by Zakhar Fedotkin  [PortSwigger's URL Validation Bypass research](https://portswigger.net/research/introducing-the-url-validation-bypass-cheat-sheet), BypassNinja now implements various IP address representation techniques to bypass WAF restrictions:
+
+- **Octal Format**: Converting IP segments to octal (e.g., `127.0.0.1` → `0177.0000.0000.0001`)
+- **Hexadecimal Format**: Converting to hex notation (e.g., `127.0.0.1` → `0x7F.0x00.0x00.0x01`)
+- **Binary Format**: Full binary representation of IP segments
+- **Partial Decimal**: Combined decimal notation
+- **DWORD Notation**: 32-bit integer representation
+- **IPv6 Mapped**: IPv4 mapped to IPv6 format (e.g., `::FFFF:127.0.0.1`)
+
 ## Notes
 
 - Ensure you have permission to perform testing on the target.
