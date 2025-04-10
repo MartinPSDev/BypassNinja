@@ -102,8 +102,24 @@ HEADERS_BYPASS = [
     {"X-WAF-Bypass": "1"}, {"Content-Security-Policy-Report-Only": "*"},
     {"X-ProxyUser-Ip": "127.0.0.1"}, {"X-Bypass-403": "1"},
     {"X-Authorization": "Bearer {random}"}, {"X-Requested-With": "XMLHttpRequest"},
+    {"X-Forwarded-Proto": "https"},
+    {"X-Forwarded-Proto": "http"},
+    {"Ali-CDN-Real-IP": "127.0.0.1"},
+    {"X-NF-Client-Connection-IP": "127.0.0.1"},
+    {"X-Vercel-Forwarded-For": "127.0.0.1"},
+    {"X-Vercel-IP-Country": "US"},
+    {"X-Vercel-IP-City": "San Francisco"},
+    {"X-Vercel-IP-Timezone": "America/Los_Angeles"},
+    {"Cache-Status": "BYPASS"},
+    {"X-Cache-Status": "BYPASS"},
+    {"X-Served-By": "cache-1"},
+    {"X-Forwarded-Scheme": "https"},
+    {"Fastly-Client-IP": "127.0.0.1"},
+    {"X-Azure-ClientIP": "127.0.0.1"},
+    {"X-Azure-SocketIP": "127.0.0.1"},
+    {"Client-IP": "127.0.0.1"},
+    {"X-Cluster-Client-IP": "127.0.0.1"}
 ]
-
 # Enhanced path mutations
 PATH_MUTATIONS = [
     "{path}", "{path}/", "{path}//", "{path}/.", "{path}/..", "{path}/../",
