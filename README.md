@@ -1,4 +1,4 @@
-<img src="./assets/logo.png" width="auto" height="5%" alt="bypass_succes image">
+<img src="./assets/logo.png" width="auto" height="5%" alt="logo">
 
 ## **BypassNinja** is a tool designed to evade HTTP (403) blocks by utilizing various methods and headers. Below is how to use the tool.
 
@@ -19,7 +19,7 @@ To run the tool, use the following command in the terminal:
 python bypassninja.py <URL> [options]
 ```
 
-<img src="./assets/banner_screenshot.png" width="auto" height="auto" alt="bypass_succes image">
+<img src="./assets/banner_screenshot.png" width="auto" height="auto" alt="banner">
 
 
 ### Parameters
@@ -58,7 +58,7 @@ python3 bypassninja.py https://target.com --timeout 3 -d 1 -o report --stop-on-s
 ```
 
 
-<img src="./assets/bypass_succes.png" width="150%" height="auto" alt="bypass_succes image">
+<img src="./assets/output.png" width="150%" height="auto" alt="output">
 
 
 ## New Features: WAF Bypass Techniques (4/10/2025)
