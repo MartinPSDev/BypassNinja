@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 import requests
+try:
+    import httpx
+    HTTPX_AVAILABLE = True
+except ImportError:
+    HTTPX_AVAILABLE = False
 import argparse
 import random
 import json
@@ -20,7 +25,7 @@ import binascii
 
 init(autoreset=True)
 
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 
 
 # list of user agents
@@ -120,7 +125,25 @@ HEADERS_BYPASS = [
     {"X-Azure-ClientIP": "127.0.0.1"},
     {"X-Azure-SocketIP": "127.0.0.1"},
     {"Client-IP": "127.0.0.1"},
-    {"X-Cluster-Client-IP": "127.0.0.1"}
+    {"X-Cluster-Client-IP": "127.0.0.1"},
+    # Modern bypass headers
+    {"X-Override-URL": "{path}"},
+    {"Proxy-Host": "127.0.0.1"},
+    {"X-Forwarded-Server": "localhost"},
+    {"X-Forwarded-Port": "443"},
+    {"X-Forwarded-Port": "80"},
+    {"X-Forwarded-For": "127.0.0.1, 127.0.0.2"},  # Chained list
+    {"X-Forwarded-For": "::1"},                     # IPv6 loopback
+    {"X-Real-IP": "::1"},
+    {"X-Client-IP": "::1"},
+    {"True-Client-IP": "::1"},
+    {"X-Frame-Options": "SAMEORIGIN"},
+    {"Content-Type": "application/x-www-form-urlencoded"},
+    {"Content-Type": "application/json"},
+    {"X-HTTP-Method-Override": "PUT"},
+    {"X-HTTP-Method-Override": "PATCH"},
+    {"X-Method-Override": "GET"},
+    {"X-HTTP-Method": "GET"},
 ]
 # Enhanced path mutations
 PATH_MUTATIONS = [
@@ -137,6 +160,19 @@ PATH_MUTATIONS = [
     "{path}/..%2f..%2f", "{path}//..%2f", "{path}/%2f%2e%2e/", "/api/{path}",
     "/public{path}", "/v1{path}", "/v2{path}", "/v3{path}", "/api/v1{path}",
     "/api/v2{path}",
+    # Advanced path mutations
+    "{path}%2F",                        # Encoded forward slash
+    "{path}%5C",                        # Encoded backslash
+    "{path}%252F",                      # Double encoded forward slash
+    "{path}~",                          # Tilde suffix
+    "{path}+",                          # Plus suffix
+    "{path}%00",                        # Null byte (some parsers ignore it)
+    "{path}/.%2e/",                     # Dot + encoded dot traversal
+    "{path}%ef%bc%8f",                  # Unicode fullwidth slash (／)
+    "{path}\\",                         # Backslash
+    "/servlet/{path}",                  # Java servlet prefix
+    "{path};jsessionid=abc123",         # Java/Tomcat session bypass
+    "{path}..;/",                       # Tomcat path normalization bypass
 ]
 
 # WAF and service signatures
@@ -226,7 +262,7 @@ class BypassBlaster:
     def __init__(self, url, path="/", proxies=None, threads=5, timeout=7, delay=0,
                  verbose=False, retry=2, cookie=None, follow_redirects=False,
                  custom_headers=None, custom_payloads=None, max_requests=None,
-                 burst_mode=False, verify_ssl=True, stop_on_success=False):
+                 burst_mode=False, verify_ssl=True, stop_on_success=False, http2=False):
         if not url.startswith(('http://', 'https://')):
             url = 'https://' + url
             print(f"{Fore.YELLOW}[!] No URL scheme provided. Using https://{Style.RESET_ALL}")
@@ -257,7 +293,14 @@ class BypassBlaster:
         self.end_time = None
         self.request_count = 0 # Correctly represents processed futures
         self.success_count = 0
-        self.session = requests.Session() # Create session ONCE
+        self.http2 = http2
+        if self.http2 and HTTPX_AVAILABLE:
+            self.session = httpx.Client(http2=True, verify=self.verify_ssl, timeout=self.timeout)
+            print(f"{Fore.GREEN}[+] HTTP/2 mode enabled via httpx{Style.RESET_ALL}")
+        else:
+            self.session = requests.Session()
+            if self.http2 and not HTTPX_AVAILABLE:
+                print(f"{Fore.YELLOW}[!] httpx not installed. Falling back to HTTP/1.1. Install with: pip install httpx[http2]{Style.RESET_ALL}")
         self.stop_event = Event() # Create event here for main thread access
         
         # Add SSL error counter
@@ -267,14 +310,29 @@ class BypassBlaster:
 
         self.first_success_result = None  # Store the result that triggered stop_on_success
 
-        self.ip_variations = None
+        # Generate IP variations for header bypass (always active)
+        self.ip_variations = generate_ip_variations('127.0.0.1')
+
+        # Add target IP variations
+        try:
+            parsed_target = urlparse(url)
+            if parsed_target.hostname:
+                target_ip = socket.gethostbyname(parsed_target.hostname)
+                target_variations = generate_ip_variations(target_ip)
+                if target_variations:
+                    self.ip_variations.update(target_variations)
+        except Exception:
+            pass
+
+        # Add proxy IP variations if proxy is configured
         if proxies:
-            # Try to get the proxy IP if it exists
             proxy_url = urlparse(proxies.get('http') or proxies.get('https', ''))
             if proxy_url.hostname:
                 try:
-                    self.ip_variations = generate_ip_variations(socket.gethostbyname(proxy_url.hostname))
-                except:
+                    proxy_variations = generate_ip_variations(socket.gethostbyname(proxy_url.hostname))
+                    if proxy_variations:
+                        self.ip_variations.update(proxy_variations)
+                except Exception:
                     pass
 
     def print_banner(self):
@@ -334,7 +392,7 @@ class BypassBlaster:
         return mutations
 
     def detect_waf(self, response):
-        # --- (WAF detection remains the same) ---
+        """Detect WAF presence via signatures, status codes, response timing, and response size."""
         detected_wafs = []
         headers_str = str(response.headers).lower()
         content = ""
@@ -344,15 +402,55 @@ class BypassBlaster:
         except Exception:
              pass # Ignore content check if text decoding fails
 
+        # 1. Signature-based detection (headers + body)
         for waf_name, signatures in WAF_SIGNATURES.items():
             for signature in signatures:
                 sig_lower = signature.lower()
                 if sig_lower in headers_str or (content and sig_lower in content):
-                    # Check self.waf_detected first to avoid redundant adds to list if already found
                     if waf_name not in self.waf_detected:
                         detected_wafs.append(waf_name)
-                    self.waf_detected.add(waf_name) # Add to set regardless
+                    self.waf_detected.add(waf_name)
                     break # Only add each WAF name once per response check
+
+        # 2. Status code fingerprinting (uncommon WAF/proxy codes)
+        waf_status_codes = {
+            444: "Nginx (Connection Closed)",
+            999: "LinkedIn/Custom WAF",
+            520: "Cloudflare (Unknown Error)",
+            521: "Cloudflare (Web Server Down)",
+            522: "Cloudflare (Connection Timed Out)",
+            523: "Cloudflare (Origin Unreachable)",
+            524: "Cloudflare (Timeout Occurred)",
+            525: "Cloudflare (SSL Handshake Failed)",
+            526: "Cloudflare (Invalid SSL Certificate)",
+            527: "Cloudflare (Railgun Error)",
+        }
+        if response.status_code in waf_status_codes:
+            waf_hint = f"WAF/Proxy ({waf_status_codes[response.status_code]})"
+            if waf_hint not in self.waf_detected:
+                detected_wafs.append(waf_hint)
+            self.waf_detected.add(waf_hint)
+
+        # 3. Response timing anomaly (possible rate limiting)
+        response_time = response.elapsed.total_seconds()
+        if response_time > 5.0 and response.status_code in [403, 429, 503]:
+            timing_hint = "Rate Limiting (slow response)"
+            if timing_hint not in self.waf_detected:
+                detected_wafs.append(timing_hint)
+            self.waf_detected.add(timing_hint)
+
+        # 4. Fixed response size fingerprinting (WAF error pages)
+        size = len(response.content)
+        known_waf_sizes = {
+            1571: "Cloudflare Error Page",
+            5765: "AWS WAF Default Block",
+            292:  "Nginx Default 403",
+        }
+        if response.status_code in [403, 503] and size in known_waf_sizes:
+            size_hint = f"WAF Fingerprint ({known_waf_sizes[size]})"
+            if size_hint not in self.waf_detected:
+                detected_wafs.append(size_hint)
+            self.waf_detected.add(size_hint)
 
         return detected_wafs
 
@@ -419,136 +517,135 @@ class BypassBlaster:
 
         req_headers = headers.copy() if headers else {}
 
-        # Generate header variations with different IP representations
-        headers_to_try = self.generate_headers_with_ip_bypass(req_headers)
-        
-        # Add Unicode variations to the path
-        url_variations = [url]
-        parsed = urlparse(url)
-        path = parsed.path
-        
-        # Add Unicode bypass to the path
-        for bypass_char in UNICODE_BYPASSES.values():
-            new_path = path.replace('/', f'/{bypass_char}')
-            new_url = parsed._replace(path=new_path).geturl()
-            url_variations.append(new_url)
+        try:
+            # Prepare request details
+            req_headers["User-Agent"] = self.get_random_user_agent()
+            if self.custom_headers:
+                req_headers.update(self.custom_headers)
+            cookies = {}
+            if self.cookie:
+                for cookie_pair in self.cookie.split(';'):
+                    if '=' in cookie_pair:
+                        key, value = cookie_pair.strip().split('=', 1)
+                        cookies[key] = value
 
-        for current_headers in headers_to_try:
-            for current_url in url_variations:
-                if self.stop_event.is_set():
-                    return None
+            if self.delay > 0 and not self.burst_mode:
+                if self.stop_event.is_set(): return None
+                time.sleep(self.delay)
 
-                try:
-                    # Prepare request details
-                    current_headers["User-Agent"] = self.get_random_user_agent()
-                    if self.custom_headers:
-                        current_headers.update(self.custom_headers)
-                    cookies = {}
-                    if self.cookie:
-                        for cookie_pair in self.cookie.split(';'):
-                            if '=' in cookie_pair:
-                                key, value = cookie_pair.strip().split('=', 1)
-                                cookies[key] = value
+            if self.stop_event.is_set(): return None
 
-                    if self.delay > 0 and not self.burst_mode:
-                        if self.stop_event.is_set(): return None
-                        time.sleep(self.delay)
+            # Clear session cookies to prevent cross-request contamination
+            self.session.cookies.clear()
 
-                    if self.stop_event.is_set(): return None
+            # Build request kwargs (handle API differences between requests and httpx)
+            request_kwargs = {
+                "method": method,
+                "url": url,
+                "headers": req_headers,
+                "timeout": self.timeout,
+                "cookies": cookies if cookies else None,
+            }
 
-                    response = self.session.request(
-                        method=method,
-                        url=current_url,
-                        headers=current_headers,
-                        proxies=self.proxies,
-                        timeout=self.timeout,
-                        allow_redirects=self.follow_redirects,
-                        cookies=cookies if cookies else None,
-                        verify=self.verify_ssl
-                    )
+            if self.http2 and HTTPX_AVAILABLE:
+                request_kwargs["follow_redirects"] = self.follow_redirects
+                # httpx handles verify and proxy at Client level
+            else:
+                request_kwargs["allow_redirects"] = self.follow_redirects
+                request_kwargs["proxies"] = self.proxies
+                request_kwargs["verify"] = self.verify_ssl
 
-                    status = response.status_code
-                    size = len(response.content)
-                    is_stop_worthy = status in [200, 201, 301, 302, 307, 308]
-                    is_actual_bypass = status in [200, 201, 302]
+            response = self.session.request(**request_kwargs)
 
-                    # Detect WAF/Captcha
-                    detected_wafs = self.detect_waf(response)
-                    detected_captchas = self.detect_captcha(response)
+            status = response.status_code
+            size = len(response.content)
+            is_stop_worthy = status in [200, 201, 301, 302, 307, 308]
+            is_actual_bypass = status in [200, 201, 302]
 
-                    result_data = {
-                        "method": method,
-                        "url": current_url,
-                        "headers": current_headers,
-                        "status": status,
-                        "size": size,
-                        "success": is_actual_bypass,
-                        "waf": detected_wafs,
-                        "captcha": detected_captchas,
-                        "response_headers": dict(response.headers),
-                        "content_preview": ""
-                    }
+            # Detect WAF/Captcha
+            detected_wafs = self.detect_waf(response)
+            detected_captchas = self.detect_captcha(response)
 
-                    # Get content preview carefully
-                    try:
-                        if is_actual_bypass:
-                            result_data["content_preview"] = response.text[:200]
-                        elif is_stop_worthy:
-                            result_data["content_preview"] = f"Redirect to: {response.headers.get('Location', 'N/A')}"
-                    except Exception:
-                        result_data["content_preview"] = "[Error decoding content]"
+            result_data = {
+                "method": method,
+                "url": url,
+                "headers": req_headers,
+                "status": status,
+                "size": size,
+                "response_time": response.elapsed.total_seconds(),
+                "success": is_actual_bypass,
+                "waf": detected_wafs,
+                "captcha": detected_captchas,
+                "response_headers": dict(response.headers),
+                "content_preview": ""
+            }
 
-                    # --- Stop Signal Logic ---
-                    if self.stop_on_success and is_stop_worthy:
-                        status_text = self.check_response_status_text(status)
-                        print(f"{Fore.GREEN}[FOUND]{Style.RESET_ALL} [{method}] {current_url} | Status: {status_text} {status} | Size: {size}")
-                        return {"stop_signal": True, "result": result_data}
+            # Get content preview carefully
+            try:
+                if is_actual_bypass:
+                    result_data["content_preview"] = response.text[:200]
+                elif is_stop_worthy:
+                    result_data["content_preview"] = f"Redirect to: {response.headers.get('Location', 'N/A')}"
+            except Exception:
+                result_data["content_preview"] = "[Error decoding content]"
 
-                    # Normal Printing Logic
-                    status_text = self.check_response_status_text(status)
-                    if is_actual_bypass:
-                        print(f"{Fore.GREEN}[HIT]{Style.RESET_ALL} [{method}] {current_url} | Status: {status_text} {status} | Size: {size}")
-                    elif self.verbose:
-                        print(f"[{method}] {current_url} | Status: {status_text} {status} | Size: {size}")
+            # --- Stop Signal Logic ---
+            if self.stop_on_success and is_stop_worthy:
+                status_text = self.check_response_status_text(status)
+                print(f"{Fore.GREEN}[FOUND]{Style.RESET_ALL} [{method}] {url} | Status: {status_text} {status} | Size: {size}")
+                return {"stop_signal": True, "result": result_data}
 
-                    return {"stop_signal": False, "result": result_data}
+            # Normal Printing Logic
+            status_text = self.check_response_status_text(status)
+            if is_actual_bypass:
+                print(f"{Fore.GREEN}[HIT]{Style.RESET_ALL} [{method}] {url} | Status: {status_text} {status} | Size: {size}")
+            elif self.verbose:
+                print(f"[{method}] {url} | Status: {status_text} {status} | Size: {size}")
 
-                # Error Handling
-                except requests.exceptions.Timeout as e:
-                    if self.verbose: print(f"{Fore.YELLOW}[TIMEOUT]{Style.RESET_ALL} {method} {current_url} - {str(e)}")
-                    if retry_count < self.retry:
-                        return self.try_request(method, current_url, current_headers, retry_count + 1)
-                    return None
-                except requests.exceptions.SSLError as e:
-                    error_message = str(e)
-                    
-                    # Check if it's the same error as before
-                    if self.last_ssl_error == error_message:
-                        self.ssl_error_count += 1
-                    else:
-                        # If it's a different error, reset the counter
-                        self.ssl_error_count = 1
-                        self.last_ssl_error = error_message
-                    
-                    if self.verify_ssl:
-                        print(f"{Fore.YELLOW}[SSL ERROR]{Style.RESET_ALL} {method} {current_url} - {error_message}")
-                        
-                        # If the SSL error threshold is reached, stop the script
-                        if self.ssl_error_count >= self.ssl_error_threshold:
-                            print(f"\n{Fore.RED}[!!!] TOO MANY REPEATED SSL ERRORS ({self.ssl_error_count}){Style.RESET_ALL}")
-                            print(f"{Fore.RED}[!!!] Stopping the script to prevent further errors.{Style.RESET_ALL}")
-                            print(f"{Fore.YELLOW}[TIP]{Style.RESET_ALL} Try running the script with the --no-verify option to ignore SSL verification")
-                            self.stop_event.set()  # Signal all threads to stop
-                    return None
-                except requests.exceptions.RequestException as e:
-                    if self.verbose: print(f"{Fore.RED}[ERROR]{Style.RESET_ALL} {method} {current_url} - {type(e).__name__}: {str(e)}")
-                    if retry_count < self.retry:
-                        return self.try_request(method, current_url, current_headers, retry_count + 1)
-                    return None
-                except Exception as e:
-                    print(f"{Fore.RED}[UNEXPECTED WORKER ERROR]{Style.RESET_ALL} {method} {current_url} - {type(e).__name__}: {str(e)}")
-                    traceback.print_exc()
-                    return None
+            return {"stop_signal": False, "result": result_data}
+
+        # Error Handling (compatible with both requests and httpx)
+        except (requests.exceptions.Timeout, *([] if not HTTPX_AVAILABLE else [httpx.TimeoutException])) as e:
+            if self.verbose: print(f"{Fore.YELLOW}[TIMEOUT]{Style.RESET_ALL} {method} {url} - {str(e)}")
+            if retry_count < self.retry:
+                return self.try_request(method, url, req_headers, retry_count + 1)
+            return None
+        except (requests.exceptions.SSLError, *([] if not HTTPX_AVAILABLE else [httpx.ConnectError])) as e:
+            error_message = str(e)
+            if 'SSL' not in error_message.upper() and HTTPX_AVAILABLE and not isinstance(e, requests.exceptions.SSLError):
+                # httpx ConnectError that isn't SSL-related, treat as generic error
+                if self.verbose: print(f"{Fore.RED}[ERROR]{Style.RESET_ALL} {method} {url} - {type(e).__name__}: {error_message}")
+                if retry_count < self.retry:
+                    return self.try_request(method, url, req_headers, retry_count + 1)
+                return None
+            
+            # Check if it's the same error as before
+            if self.last_ssl_error == error_message:
+                self.ssl_error_count += 1
+            else:
+                # If it's a different error, reset the counter
+                self.ssl_error_count = 1
+                self.last_ssl_error = error_message
+            
+            if self.verify_ssl:
+                print(f"{Fore.YELLOW}[SSL ERROR]{Style.RESET_ALL} {method} {url} - {error_message}")
+                
+                # If the SSL error threshold is reached, stop the script
+                if self.ssl_error_count >= self.ssl_error_threshold:
+                    print(f"\n{Fore.RED}[!!!] TOO MANY REPEATED SSL ERRORS ({self.ssl_error_count}){Style.RESET_ALL}")
+                    print(f"{Fore.RED}[!!!] Stopping the script to prevent further errors.{Style.RESET_ALL}")
+                    print(f"{Fore.YELLOW}[TIP]{Style.RESET_ALL} Try running the script with the --no-verify option to ignore SSL verification")
+                    self.stop_event.set()  # Signal all threads to stop
+            return None
+        except (requests.exceptions.RequestException, *([] if not HTTPX_AVAILABLE else [httpx.HTTPError])) as e:
+            if self.verbose: print(f"{Fore.RED}[ERROR]{Style.RESET_ALL} {method} {url} - {type(e).__name__}: {str(e)}")
+            if retry_count < self.retry:
+                return self.try_request(method, url, req_headers, retry_count + 1)
+            return None
+        except Exception as e:
+            print(f"{Fore.RED}[UNEXPECTED WORKER ERROR]{Style.RESET_ALL} {method} {url} - {type(e).__name__}: {str(e)}")
+            traceback.print_exc()
+            return None
 
 
     def run(self):
@@ -614,26 +711,56 @@ class BypassBlaster:
                     if self.verbose: print(f"{Fore.RED}[URL GEN ERROR]{Style.RESET_ALL} Mutation '{path_mutation}' failed: {e}")
                     continue  # Skip this mutation
 
-                # --- Test Case Addition (Base and Headers) ---
-                base_headers_tuple = tuple()
-                combo = (method, full_url, base_headers_tuple)
-                if combo not in unique_test_combos:
-                    test_cases.append((method, full_url, {}))
-                    unique_test_combos.add(combo)
+                # --- Generate URL candidates (original + Unicode variations) ---
+                url_candidates = [full_url]
+                parsed_for_unicode = urlparse(full_url)
+                url_path = parsed_for_unicode.path
+                for bypass_char in UNICODE_BYPASSES.values():
+                    new_path = url_path.replace('/', f'/{bypass_char}')
+                    unicode_url = parsed_for_unicode._replace(path=new_path).geturl()
+                    url_candidates.append(unicode_url)
 
-                # Header cases
-                for header_template in HEADERS_BYPASS:
-                    try:
-                        headers = {k: v.format(path=self.path, random=str(random.randint(1000, 9999)))
-                                   if isinstance(v, str) and ("{path}" in v or "{random}" in v) else v
-                                   for k, v in header_template.items()}
-                        headers_tuple = tuple(sorted(headers.items()))
-                        combo = (method, full_url, headers_tuple)
-                        if combo not in unique_test_combos:
-                            test_cases.append((method, full_url, headers))
-                            unique_test_combos.add(combo)
-                    except KeyError as e:  # Error formatting the header value
-                        if self.verbose: print(f"{Fore.YELLOW}[WARN]{Style.RESET_ALL} Header formatting error ({e}): {header_template}")
+                for candidate_url in url_candidates:
+                    # --- Test Case Addition (Base and Headers) ---
+                    base_headers_tuple = tuple()
+                    combo = (method, candidate_url, base_headers_tuple)
+                    if combo not in unique_test_combos:
+                        test_cases.append((method, candidate_url, {}))
+                        unique_test_combos.add(combo)
+
+                    # Single header cases
+                    for header_template in HEADERS_BYPASS:
+                        try:
+                            headers = {k: v.format(path=self.path, random=str(random.randint(1000, 9999)))
+                                       if isinstance(v, str) and ("{path}" in v or "{random}" in v) else v
+                                       for k, v in header_template.items()}
+                            headers_tuple = tuple(sorted(headers.items()))
+                            combo = (method, candidate_url, headers_tuple)
+                            if combo not in unique_test_combos:
+                                test_cases.append((method, candidate_url, headers))
+                                unique_test_combos.add(combo)
+                        except KeyError as e:  # Error formatting the header value
+                            if self.verbose: print(f"{Fore.YELLOW}[WARN]{Style.RESET_ALL} Header formatting error ({e}): {header_template}")
+
+                    # Combined headers (2-3 headers merged together)
+                    num_combos = min(10, len(HEADERS_BYPASS))
+                    for _ in range(num_combos):
+                        try:
+                            sample_size = random.choice([2, 3])
+                            sampled = random.sample(HEADERS_BYPASS, min(sample_size, len(HEADERS_BYPASS)))
+                            combined = {}
+                            for h in sampled:
+                                formatted = {k: v.format(path=self.path, random=str(random.randint(1000, 9999)))
+                                             if isinstance(v, str) and ("{path}" in v or "{random}" in v) else v
+                                             for k, v in h.items()}
+                                combined.update(formatted)
+                            combined_tuple = tuple(sorted(combined.items()))
+                            combo = (method, candidate_url, combined_tuple)
+                            if combo not in unique_test_combos:
+                                test_cases.append((method, candidate_url, combined))
+                                unique_test_combos.add(combo)
+                        except (KeyError, ValueError):
+                            pass
 
 
         total_combinations = len(test_cases) # This is the actual number submitted
@@ -796,17 +923,18 @@ class BypassBlaster:
                 "waf_detected": sorted(list(self.waf_detected)),
                 "captcha_detected": sorted(list(self.captcha_types)) if self.captcha_detected else []
             },
-            "successful_bypasses": [ # Only saves 2xx results
+            "successful_bypasses": [
                 {
                     "method": bypass["method"],
                     "url": bypass["url"],
                     "status": bypass["status"],
                     "size": bypass["size"],
-                    "request_headers": {k: v for k, v in bypass["headers"].items() if k.lower() != "user-agent"}, # Exclude UA
+                    "response_time": bypass.get("response_time", 0),
+                    "request_headers": {k: v for k, v in bypass["headers"].items() if k.lower() != "user-agent"},
                     "response_headers": bypass["response_headers"],
                     "waf_detected": bypass["waf"],
                     "captcha_detected": bypass["captcha"],
-                    "content_preview": bypass.get("content_preview", "") # Include preview
+                    "content_preview": bypass.get("content_preview", "")
                 } for bypass in sorted(self.successful_bypasses, key=lambda x: (x['url'], x['method']))
             ]
         }
@@ -817,9 +945,12 @@ class BypassBlaster:
                   "url": self.first_success_result["url"],
                   "status": self.first_success_result["status"],
                   "size": self.first_success_result["size"],
+                  "response_time": self.first_success_result.get("response_time", 0),
                   "request_headers": {k: v for k, v in self.first_success_result["headers"].items() if k.lower() != "user-agent"},
                   "response_headers": self.first_success_result["response_headers"],
-                   "content_preview": self.first_success_result.get("content_preview", "")
+                  "waf_detected": self.first_success_result.get("waf", []),
+                  "captcha_detected": self.first_success_result.get("captcha", []),
+                  "content_preview": self.first_success_result.get("content_preview", "")
              }
 
         try:
@@ -864,6 +995,7 @@ def main():
     parser.add_argument("--burst", action="store_true", help="Burst mode (uses only GET/POST methods)")
     parser.add_argument("--no-verify", action="store_true", help="Disable SSL verification")
     parser.add_argument("--stop-on-success", action="store_true", help="Stop after the first success (2xx) or redirect (3xx)")
+    parser.add_argument("--http2", action="store_true", help="Enable HTTP/2 support (requires httpx: pip install httpx[http2])")
     parser.add_argument("--update", "-u", action="store_true", help="Update the script from the repository")
 
     args = parser.parse_args()
@@ -943,7 +1075,8 @@ def main():
             max_requests=args.max_requests,
             burst_mode=args.burst,
             verify_ssl=not args.no_verify,
-            stop_on_success=args.stop_on_success
+            stop_on_success=args.stop_on_success,
+            http2=args.http2
         )
 
         blaster.run() # stop_event is now self.stop_event within blaster

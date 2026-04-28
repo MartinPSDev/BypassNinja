@@ -41,6 +41,7 @@ python bypassninja.py <URL> [options]
 - `--burst`: Burst mode (uses only GET/POST methods).
 - `--no-verify`: Disable SSL verification.
 - `--stop-on-success`: Stop after the first success (2xx) or redirect (3xx).
+- `--http2`: Enable HTTP/2 support (requires `httpx`: `pip install httpx[http2]`).
 
 ### Example Command
 
@@ -78,8 +79,10 @@ Based on an article written by Zakhar Fedotkin  [PortSwigger's URL Validation By
 - Ensure you have permission to perform testing on the target.
 - Use the tool responsibly and ethically.
 
+## Changelog
+
+For a detailed list of changes, bug fixes, and new features, see the [CHANGELOG](CHANGELOG.md).
 
 ## Author
 
 - **@M4rt1n_0x1337** - *Initial work* - [X](https://x.com/M4rt1n_0x1337)
-
