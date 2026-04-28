@@ -42,6 +42,7 @@ python bypassninja.py <URL> [options]
 - `--no-verify`: Disable SSL verification.
 - `--stop-on-success`: Stop after the first success (2xx) or redirect (3xx).
 - `--http2`: Enable HTTP/2 support (requires `httpx`: `pip install httpx[http2]`).
+- `-u`, `--update`: Update the script to the latest version from the repository.
 
 ### Example Command
 
@@ -51,13 +52,19 @@ python bypassninja.py https://target.com -p /admin --output results.json --threa
 
 This command will attempt to evade blocks on `https://example.com` at the path `/admin`, using 10 threads and saving the results to `results.json`. The tool will stop after finding the first success or redirect.
 
-
 ### Recommended command
 
 ```bash
 python3 bypassninja.py https://target.com --timeout 3 -d 1 -o report --stop-on-success
 ```
 
+### Self-Update
+
+Keep your tool up to date with the latest bypass techniques and features:
+
+```bash
+python bypassninja.py --update
+```
 
 <img src="./assets/output.png" width="150%" height="auto" alt="output">
 
