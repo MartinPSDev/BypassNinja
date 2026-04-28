@@ -265,6 +265,8 @@ class BypassBlaster:
         self.ssl_error_threshold = 10  # Threshold to stop the script
         self.last_ssl_error = None  # To store the last SSL error
 
+        self.first_success_result = None  # Store the result that triggered stop_on_success
+
         self.ip_variations = None
         if proxies:
             # Try to get the proxy IP if it exists
@@ -382,7 +384,7 @@ class BypassBlaster:
         if status_code in [200, 201]: return f"{Fore.GREEN}SUCCESS{Style.RESET_ALL}"
         if status_code in [301, 302, 307, 308]: return f"{Fore.BLUE}REDIRECT{Style.RESET_ALL}"
         if status_code in [401, 403]: return f"{Fore.RED}BLOCKED{Style.RESET_ALL}"
-        if status_code == 400: return f"{Fore.RED}BAD REQUEST{Style.RESET_ALL}" # Added 400
+        if status_code == 400: return f"{Fore.RED}BAD REQUEST{Style.RESET_ALL}"
         if status_code == 429: return f"{Fore.MAGENTA}RATE LIMITED{Style.RESET_ALL}"
         if status_code == 503: return f"{Fore.YELLOW}SERVICE UNAVAILABLE{Style.RESET_ALL}"
         return f"{Fore.YELLOW}OTHER ({status_code}){Style.RESET_ALL}"
@@ -654,7 +656,7 @@ class BypassBlaster:
         processed_requests = 0 # Renamed from self.request_count to avoid confusion
         submitted_requests = 0
         futures = set()
-        first_success_result = None # Store the result that triggered the stop
+        self.first_success_result = None # Reset for this run
         stop_triggered = False # Flag for main loop
 
         print(f"{Fore.CYAN}[+] Starting bypass attempts...{Style.RESET_ALL}")
@@ -688,7 +690,7 @@ class BypassBlaster:
                             if not stop_triggered:
                                 print(f"\n{Fore.YELLOW}[!!!] STOP SIGNAL RECEIVED! (Status: {result_data.get('status', 'N/A')}). Signaling threads...{Style.RESET_ALL}")
                                 self.stop_event.set()  # SET THE EVENT!
-                                first_success_result = result_data  # Store the triggering result
+                                self.first_success_result = result_data  # Store the triggering result
                                 stop_triggered = True  # Set flag for subsequent iterations
 
                         # --- Handle Normal Success (2xx) ---
@@ -714,13 +716,13 @@ class BypassBlaster:
         self.request_count = processed_requests # Update instance count
 
         # If we stopped early via stop_on_success, ensure the triggering result is added if it was a 2xx bypass
-        if first_success_result and first_success_result['success']:
+        if self.first_success_result and self.first_success_result['success']:
              is_already_added = any(
-                 b['url'] == first_success_result['url'] and b['method'] == first_success_result['method']
+                 b['url'] == self.first_success_result['url'] and b['method'] == self.first_success_result['method']
                  for b in self.successful_bypasses
              )
              if not is_already_added:
-                 self.successful_bypasses.append(first_success_result)
+                 self.successful_bypasses.append(self.first_success_result)
 
         self.success_count = len(self.successful_bypasses) # Final count
         self.end_time = time.time()
@@ -759,16 +761,16 @@ class BypassBlaster:
                 if bypass.get('content_preview'): print(f"     Content Preview: {bypass['content_preview'][:100]}...") # Limit length
 
             if len(sorted_bypasses) > 10: print(f"  ... and {len(sorted_bypasses) - 10} more.")
-        elif self.stop_on_success and first_success_result: # Check if stopped for non-2xx
+        elif self.stop_on_success and self.first_success_result: # Check if stopped for non-2xx
              print(f"\n{Fore.BLUE}=== Stopped on First Success/Redirect ==={Style.RESET_ALL}")
-             print(f"  - [{first_success_result['method']}] {first_success_result['url']}")
-             print(f"    Status: {first_success_result['status']}, Size: {first_success_result['size']}")
-             if first_success_result.get('content_preview'): print(f"    Preview: {first_success_result['content_preview'][:100]}...")
+             print(f"  - [{self.first_success_result['method']}] {self.first_success_result['url']}")
+             print(f"    Status: {self.first_success_result['status']}, Size: {self.first_success_result['size']}")
+             if self.first_success_result.get('content_preview'): print(f"    Preview: {self.first_success_result['content_preview'][:100]}...")
         else:
              print(f"\n{Fore.RED}No successful bypasses (Status 2xx) found.{Style.RESET_ALL}")
 
         # Suggestions
-        if self.success_count == 0 and not (self.stop_on_success and first_success_result):
+        if self.success_count == 0 and not (self.stop_on_success and self.first_success_result):
              print(f"\n{Fore.YELLOW}[!] Suggestions for improving results:{Style.RESET_ALL}")
              print(f"  - Target might require specific cookies: {Fore.CYAN}--cookie \"name=value;...\"{Style.RESET_ALL}")
              print(f"  - Try different/custom headers: {Fore.CYAN}--headers '{{\"Header\": \"Value\"}}'{Style.RESET_ALL}")
@@ -809,15 +811,15 @@ class BypassBlaster:
             ]
         }
         # Add the first success if stopped early and it wasn't a 2xx already saved
-        if self.stop_on_success and first_success_result and not first_success_result['success']:
+        if self.stop_on_success and self.first_success_result and not self.first_success_result['success']:
              output["stopped_on_redirect"] = {
-                  "method": first_success_result["method"],
-                  "url": first_success_result["url"],
-                  "status": first_success_result["status"],
-                  "size": first_success_result["size"],
-                  "request_headers": {k: v for k, v in first_success_result["headers"].items() if k.lower() != "user-agent"},
-                  "response_headers": first_success_result["response_headers"],
-                   "content_preview": first_success_result.get("content_preview", "")
+                  "method": self.first_success_result["method"],
+                  "url": self.first_success_result["url"],
+                  "status": self.first_success_result["status"],
+                  "size": self.first_success_result["size"],
+                  "request_headers": {k: v for k, v in self.first_success_result["headers"].items() if k.lower() != "user-agent"},
+                  "response_headers": self.first_success_result["response_headers"],
+                   "content_preview": self.first_success_result.get("content_preview", "")
              }
 
         try:
@@ -828,8 +830,7 @@ class BypassBlaster:
             print(f"{Fore.RED}[!] Error saving results: {str(e)}{Style.RESET_ALL}")
 
 
-# Store first_success_result globally or pass it around if needed outside run()
-first_success_result = None
+
 
 def update_script():
     """Update the script by pulling the latest changes from the repository."""
@@ -972,6 +973,4 @@ def main():
 
 
 if __name__ == "__main__":
-    # Assign the global variable here AFTER the class definition
-    first_success_result = None
     main()
