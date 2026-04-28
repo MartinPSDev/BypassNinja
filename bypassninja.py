@@ -185,33 +185,33 @@ UNICODE_BYPASSES = {
 def generate_ip_variations(ip):
     """Generate different representations of an IPv4 address."""
     try:
-        # Validar y convertir la dirección IP
+        # Validate and convert the IP address
         ip_obj = ipaddress.IPv4Address(ip)
         octets = list(map(int, str(ip_obj).split('.')))
         
         variations = {
-            # Formato original
+            # Original format
             'ipv4': str(ip_obj),
             
-            # Formato octal
+            # Octal format
             'octal': '.'.join(f'{octet:04o}' for octet in octets),
             
-            # Formato hexadecimal
+            # Hexadecimal format
             'hex': '.'.join(f'0x{octet:02X}' for octet in octets),
             
-            # Formato binario
+            # Binary format
             'binary': '.'.join(f'{octet:08b}' for octet in octets),
             
-            # Formato decimal parcial
+            # Partial decimal format
             'partial_decimal': f"{octets[0]}.{octets[1]}.{(octets[2] << 8) + octets[3]}",
             
-            # Notación DWORD
+            # DWORD notation
             'dword': str(int(ip_obj)),
             
-            # Notación DWORD con overflow
+            # DWORD notation with overflow
             'dword_overflow': str(int(ip_obj) + (2**32 * 10)),
             
-            # Dirección IPv6 mapeada (dos formatos)
+            # Mapped IPv6 address (two formats)
             'ipv6_mapped': f'::FFFF:{octets[0]:02X}{octets[1]:02X}:{octets[2]:02X}{octets[3]:02X}',
             'ipv6_mapped_dots': f'::FFFF:{ip}'
         }
@@ -260,14 +260,14 @@ class BypassBlaster:
         self.session = requests.Session() # Create session ONCE
         self.stop_event = Event() # Create event here for main thread access
         
-        # Añadir contador de errores SSL
+        # Add SSL error counter
         self.ssl_error_count = 0
         self.ssl_error_threshold = 10  # Threshold to stop the script
         self.last_ssl_error = None  # To store the last SSL error
 
         self.ip_variations = None
         if proxies:
-            # Intentar obtener la IP del proxy si existe
+            # Try to get the proxy IP if it exists
             proxy_url = urlparse(proxies.get('http') or proxies.get('https', ''))
             if proxy_url.hostname:
                 try:
@@ -417,15 +417,15 @@ class BypassBlaster:
 
         req_headers = headers.copy() if headers else {}
 
-        # Generar variaciones de headers con diferentes representaciones de IP
+        # Generate header variations with different IP representations
         headers_to_try = self.generate_headers_with_ip_bypass(req_headers)
         
-        # Añadir variaciones Unicode al path
+        # Add Unicode variations to the path
         url_variations = [url]
         parsed = urlparse(url)
         path = parsed.path
         
-        # Añadir bypass Unicode al path
+        # Add Unicode bypass to the path
         for bypass_char in UNICODE_BYPASSES.values():
             new_path = path.replace('/', f'/{bypass_char}')
             new_url = parsed._replace(path=new_path).geturl()
@@ -595,7 +595,7 @@ class BypassBlaster:
         methods_to_try = HTTP_METHODS if not self.burst_mode else ["GET", "POST"]
         test_cases = []
         unique_test_combos = set()
-        base_netloc = urlparse(self.url).netloc  # Obtener el nombre de host esperado
+        base_netloc = urlparse(self.url).netloc  # Get the expected hostname
 
         print(f"{Fore.CYAN}[+] Generating and validating test cases...{Style.RESET_ALL}")
         for method in methods_to_try:
@@ -604,13 +604,13 @@ class BypassBlaster:
                 try:
                     full_url = urljoin(self.url, path_mutation)
                     parsed_full_url = urlparse(full_url)
-                    # Verificar si el nombre de host es válido y coincide con el original
+                    # Check if the hostname is valid and matches the original
                     if not parsed_full_url.netloc or parsed_full_url.netloc != base_netloc:
                         if self.verbose: print(f"{Fore.YELLOW}[SKIP INVALID URL]{Style.RESET_ALL} Mutation '{path_mutation}' generated invalid host: {parsed_full_url.netloc}")
-                        continue  # Saltar esta mutación
-                except ValueError as e:  # Capturar errores potenciales durante urljoin/urlparse
+                        continue  # Skip this mutation
+                except ValueError as e:  # Capture potential errors during urljoin/urlparse
                     if self.verbose: print(f"{Fore.RED}[URL GEN ERROR]{Style.RESET_ALL} Mutation '{path_mutation}' failed: {e}")
-                    continue  # Saltar esta mutación
+                    continue  # Skip this mutation
 
                 # --- Test Case Addition (Base and Headers) ---
                 base_headers_tuple = tuple()
@@ -630,7 +630,7 @@ class BypassBlaster:
                         if combo not in unique_test_combos:
                             test_cases.append((method, full_url, headers))
                             unique_test_combos.add(combo)
-                    except KeyError as e:  # Error al formatear el valor del encabezado
+                    except KeyError as e:  # Error formatting the header value
                         if self.verbose: print(f"{Fore.YELLOW}[WARN]{Style.RESET_ALL} Header formatting error ({e}): {header_template}")
 
 
@@ -673,7 +673,7 @@ class BypassBlaster:
             # Process results using as_completed
             for future in as_completed(futures):
                 processed_requests += 1
-                if stop_triggered:  # Saltar el procesamiento si ya se detuvo
+                if stop_triggered:  # Skip processing if already stopped
                     try: future.result()
                     except Exception: pass
                     continue
@@ -834,7 +834,7 @@ first_success_result = None
 def update_script():
     """Update the script by pulling the latest changes from the repository."""
     try:
-        # Ejecutar el comando git pull para actualizar el repositorio
+        # Run git pull command to update the repository
         result = subprocess.run(['git', 'pull'], check=True, capture_output=True, text=True)
         print(result.stdout)
         print("The script has been updated successfully.")
