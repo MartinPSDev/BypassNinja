@@ -33,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Response timing anomaly**: Flags slow responses (>5s) on 403/429/503 as possible rate limiting.
   - **Response size fingerprinting**: Matches known WAF error page sizes (Cloudflare, AWS WAF, Nginx defaults).
 
+- **Modern User-Agents**: Added 25+ new User-Agent strings for AI crawlers, LLM agents (OpenAI, Anthropic, Google AI, Meta AI, Perplexity), and AI agent frameworks (LangChain, AutoGPT, CrewAI, MCP).
+
 - **Richer JSON output**: Added `response_time` field to all results (successful bypasses and redirects). The `stopped_on_redirect` entry now includes `waf_detected` and `captcha_detected` fields for complete post-analysis parity with successful bypasses.
 
 - **HTTP/2 support**: New `--http2` flag enables HTTP/2 requests via `httpx`. Some WAFs treat HTTP/2 traffic differently, making this an effective bypass technique. Falls back gracefully to HTTP/1.1 if `httpx` is not installed.

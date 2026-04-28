@@ -88,7 +88,55 @@ USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 OPR/109.0.0.0",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3 Safari/605.1.15",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0"
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0",
+    
+    # AI Crawlers & LLM Agents (2024-2025)
+    # OpenAI
+    "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.0; +https://openai.com/gptbot)",
+    "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.1; +https://openai.com/gptbot)",
+    "ChatGPT-User/1.0; +https://openai.com/bot",
+    "OAI-SearchBot/1.0; +https://openai.com/searchbot",
+
+    # Anthropic
+    "anthropic-ai/1.0",
+    "ClaudeBot/1.0; +https://www.anthropic.com/claude-bot",
+    "Mozilla/5.0 (compatible; ClaudeBot/1.0; +https://www.anthropic.com/claude-bot)",
+
+    # Google AI
+    "Mozilla/5.0 (compatible; Google-Extended/1.0; +http://www.google.com/bot.html)",
+    "Googlebot-Extended/1.0 (AI Training; +https://developers.google.com/search/docs/crawling-indexing/overview-google-crawlers)",
+
+    # Meta AI
+    "Meta-ExternalAgent/1.1 (+(https://developers.facebook.com/docs/sharing/webmasters/crawler))",
+    "Meta-ExternalFetcher/1.0 (+(https://developers.facebook.com/docs/sharing/webmasters/crawler))",
+
+    # Perplexity
+    "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)",
+
+    # Common Crawl (used for training LLMs)
+    "CCBot/2.0 (https://commoncrawl.org/faq/)",
+
+    # Amazon Alexa / Diffbot
+    "Mozilla/5.0 (compatible; Diffbot/3.0; +http://www.diffbot.com)",
+
+    # Cohere
+    "cohere-ai/1.0",
+
+    # AI agent frameworks (simulating autonomous agents)
+    "python-httpx/0.27.0",                          # Used by many LLM agents
+    "python-requests/2.31.0",                        # Default for many agent scripts
+    "LangChain/0.1.0 (AI Agent; +https://langchain.com)",
+    "AutoGPT/0.5.0 (Autonomous AI Agent)",
+    "CrewAI/1.0 (Multi-Agent Framework)",
+
+    # MCP / tool-use agents
+    "ModelContextProtocol/1.0 (Claude; Anthropic)",
+    "MCPClient/1.0 (tool-use-agent)",
+
+    # Search agents and RAG
+    "Apify/3.0 (+https://apify.com/apifybot)",
+    "FirecrawlAgent/1.0 (+https://firecrawl.dev)",
+    "Scrapy/2.11.0 (+https://scrapy.org)",
 ]
 
 
